@@ -1,184 +1,260 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Editor } from '@monaco-editor/react';
 import io from 'socket.io-client';
-import { db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import './App.css';
 
-const socket = io('http://localhost:5000');
+const SOCKET_URL = 'http://localhost:5000';
+const LANGUAGES = ['javascript', 'typescript', 'python', 'go', 'rust', 'java', 'html', 'css', 'json', 'markdown'];
 
-const App = () => {
-  const [code, setCode] = useState('// Start coding...');
-  const [documentId] = useState('default');
-  const [loading, setLoading] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [isMicOn, setIsMicOn] = useState(false);
+// ── Join Screen ───────────────────────────────────────────────
+function JoinScreen({ onJoin }) {
+  const [name, setName] = useState('');
 
-  const localVideoRef = useRef(null);
-  const screenVideoRef = useRef(null);
-  let localStream = useRef(null);
-  let screenStream = useRef(null);
-
-  // Load initial code from Firestore
-  useEffect(() => {
-    const fetchDocument = async () => {
-      try {
-        const docRef = doc(db, 'sessions', documentId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const fetchedCode = docSnap.data().content;
-          setCode(fetchedCode || '// Start coding...');
-        } else {
-          setCode('// Start coding...');
-        }
-      } catch (error) {
-        console.error('Error fetching document:', error);
-        setCode('// Error loading code');
-      }
-      setLoading(false);
-    };
-
-    fetchDocument();
-
-    // Listen for code updates from other collaborators via socket
-    socket.on('codeUpdate', (newCode) => {
-      setCode(newCode);
-    });
-
-    return () => {
-      socket.off('codeUpdate');
-    };
-  }, [documentId]);
-
-  // Handle changes in the editor
-  const handleEditorChange = (newValue) => {
-    setCode(newValue);
-    socket.emit('codeChange', newValue);
-
-    // Save code to Firestore
-    const docRef = doc(db, 'sessions', documentId);
-    setDoc(docRef, { content: newValue })
-      .then(() => console.log('Document saved successfully!'))
-      .catch((error) => console.error('Error saving document:', error));
+  const submit = () => {
+    if (name.trim()) onJoin(name.trim());
   };
-
-  // Toggle camera on/off
-  const toggleCamera = async () => {
-    if (!isCameraOn) {
-      try {
-        localStream.current = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-        localVideoRef.current.srcObject = localStream.current;
-        setIsCameraOn(true);
-      } catch (err) {
-        console.error('Error accessing the camera:', err);
-      }
-    } else {
-      localStream.current.getTracks().forEach(track => track.stop());
-      localVideoRef.current.srcObject = null;
-      setIsCameraOn(false);
-    }
-  };
-
-  // Toggle microphone on/off
-  const toggleMicrophone = async () => {
-    if (!isMicOn) {
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: true,
-        });
-        // If microphone access is successful, integrate it with your existing stream
-        localStream.current = audioStream;
-        setIsMicOn(true);
-      } catch (err) {
-        console.error('Error accessing the microphone:', err);
-      }
-    } else {
-      localStream.current.getTracks().forEach(track => track.stop());
-      setIsMicOn(false);
-    }
-  };
-
-  // Toggle screen sharing on/off
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      try {
-        screenStream.current = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-        });
-        screenVideoRef.current.srcObject = screenStream.current;
-
-        screenStream.current.getTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          screenVideoRef.current.srcObject = null;
-        };
-
-        setIsScreenSharing(true);
-      } catch (err) {
-        console.error('Error sharing the screen:', err);
-      }
-    } else {
-      screenStream.current.getTracks().forEach(track => track.stop());
-      screenVideoRef.current.srcObject = null;
-      setIsScreenSharing(false);
-    }
-  };
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
 
   return (
-    <div className="App">
-      {/* Monaco Editor */}
-      <div className="editor-container">
-        <Editor
-          height="60vh"
-          defaultLanguage="javascript"
-          theme="vs-dark"
-          value={code}
-          onChange={handleEditorChange}
-          options={{ automaticLayout: true }}
+    <div className="join-screen">
+      <div className="join-card">
+        <div className="join-logo">◈ CodeCollab</div>
+        <p className="join-sub">Segment-based collaborative coding</p>
+        <input
+          className="join-input"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          autoFocus
         />
-      </div>
-
-      {/* Video and Screen Sharing Controls */}
-      <div className="overlay">
-        <div className="video-container">
-          <div className="facecam-container">
-            <video
-              className="video-local"
-              ref={localVideoRef}
-              autoPlay
-              muted
-            ></video> {/* Placeholder for local video */}
-          </div>
-          <video
-            className="video-remote"
-            ref={screenVideoRef}
-            autoPlay
-          ></video> {/* Placeholder for screen share */}
-        </div>
-
-        <div className="controls">
-          <button onClick={toggleScreenShare}>
-            {isScreenSharing ? 'Stop Screen Share' : 'Start Screen Share'}
-          </button>
-          <button onClick={toggleCamera}>
-            {isCameraOn ? 'Turn Camera Off' : 'Turn Camera On'}
-          </button>
-          <button onClick={toggleMicrophone}>
-            {isMicOn ? 'Turn Microphone Off' : 'Turn Microphone On'}
-          </button>
-        </div>
+        <button className="join-btn" onClick={submit}>
+          Join Session →
+        </button>
       </div>
     </div>
   );
-};
+}
 
-export default App;
+// ── User Pill ─────────────────────────────────────────────────
+function UserPill({ user, isYou }) {
+  return (
+    <div className="user-pill" title={user.name}>
+      <span className="user-dot" style={{ background: user.color }} />
+      <span className="user-name">
+        {user.name}
+        {isYou && <span className="user-you"> you</span>}
+      </span>
+    </div>
+  );
+}
+
+// ── New Segment Form (inline in tab bar) ──────────────────────
+function NewSegmentForm({ onConfirm, onCancel }) {
+  const [name, setName] = useState('');
+  const [language, setLanguage] = useState('javascript');
+
+  const submit = () => {
+    if (name.trim()) onConfirm({ name: name.trim(), language });
+  };
+
+  return (
+    <div className="tab-new-form">
+      <input
+        className="tab-new-input"
+        placeholder="Segment name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        autoFocus
+      />
+      <select
+        className="tab-new-lang"
+        value={language}
+        onChange={(e) => setLanguage(e.target.value)}
+      >
+        {LANGUAGES.map((l) => (
+          <option key={l} value={l}>{l}</option>
+        ))}
+      </select>
+      <button className="tab-new-confirm" onClick={submit}>Create</button>
+      <button className="tab-new-cancel" onClick={onCancel}>✕</button>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [segments, setSegments] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const socketRef = useRef(null);
+
+  const join = useCallback((name) => {
+    const socket = io(SOCKET_URL);
+    socketRef.current = socket;
+
+    socket.on('joined', ({ user, users, segments }) => {
+      setUser(user);
+      setUsers(users);
+      setSegments(segments);
+      if (segments.length > 0) setActiveId(segments[0].id);
+    });
+
+    socket.on('users:update', setUsers);
+
+    socket.on('segments:update', (segs) => {
+      setSegments(segs);
+    });
+
+    socket.on('segment:content', ({ segmentId, content }) => {
+      setSegments((prev) =>
+        prev.map((s) => (s.id === segmentId ? { ...s, content } : s))
+      );
+    });
+
+    socket.emit('join', { name });
+  }, []);
+
+  // Auto-focus your newly created segment
+  useEffect(() => {
+    if (!user) return;
+    const mine = segments.find((s) => s.ownerId === user.id);
+    if (mine && !activeId) setActiveId(mine.id);
+  }, [segments, user, activeId]);
+
+  const createSegment = ({ name, language }) => {
+    socketRef.current?.emit('segment:create', { name, language });
+    setShowNewForm(false);
+  };
+
+  const deleteSegment = (segmentId, e) => {
+    e.stopPropagation();
+    socketRef.current?.emit('segment:delete', { segmentId });
+    if (activeId === segmentId) {
+      const rest = segments.filter((s) => s.id !== segmentId);
+      setActiveId(rest.length > 0 ? rest[0].id : null);
+    }
+  };
+
+  const handleEditorChange = (content) => {
+    if (!activeSegment || activeSegment.ownerId !== user?.id) return;
+    socketRef.current?.emit('segment:update', { segmentId: activeId, content });
+    setSegments((prev) =>
+      prev.map((s) => (s.id === activeId ? { ...s, content } : s))
+    );
+  };
+
+  const activeSegment = segments.find((s) => s.id === activeId) ?? null;
+  const isOwner = activeSegment?.ownerId === user?.id;
+
+  if (!user) return <JoinScreen onJoin={join} />;
+
+  return (
+    <div className="app">
+      {/* ── Header ─────────────────────────────────────────── */}
+      <header className="header">
+        <span className="header-logo">◈ CodeCollab</span>
+        <div className="header-users">
+          {users.map((u) => (
+            <UserPill key={u.id} user={u} isYou={u.id === user.id} />
+          ))}
+        </div>
+      </header>
+
+      {/* ── Tab Bar ────────────────────────────────────────── */}
+      <div className="tab-bar">
+        {segments.map((seg) => (
+          <button
+            key={seg.id}
+            className={`tab${activeId === seg.id ? ' tab--active' : ''}`}
+            style={{ '--tab-color': seg.ownerColor }}
+            onClick={() => setActiveId(seg.id)}
+          >
+            <span className="tab-dot" style={{ background: seg.ownerColor }} />
+            <span className="tab-name">{seg.name}</span>
+            {seg.ownerId === user.id && (
+              <span className="tab-close" onClick={(e) => deleteSegment(seg.id, e)}>
+                ×
+              </span>
+            )}
+          </button>
+        ))}
+
+        {showNewForm ? (
+          <NewSegmentForm
+            onConfirm={createSegment}
+            onCancel={() => setShowNewForm(false)}
+          />
+        ) : (
+          <button className="tab-add" onClick={() => setShowNewForm(true)}>
+            + New Segment
+          </button>
+        )}
+      </div>
+
+      {/* ── Editor Area ────────────────────────────────────── */}
+      <div
+        className="editor-wrap"
+        style={{ '--owner-color': activeSegment?.ownerColor ?? 'transparent' }}
+      >
+        {activeSegment ? (
+          <>
+            <div className="editor-header">
+              <span className="editor-owner" style={{ color: activeSegment.ownerColor }}>
+                ● {activeSegment.ownerName}
+              </span>
+              <span className="editor-seg-name">{activeSegment.name}</span>
+              <div className="editor-header-right">
+                <span className="editor-lang">{activeSegment.language}</span>
+                {!isOwner && (
+                  <span className="editor-readonly-badge">read-only</span>
+                )}
+              </div>
+            </div>
+
+            <Editor
+              key={activeId}
+              height="calc(100vh - 128px)"
+              language={activeSegment.language}
+              theme="vs-dark"
+              value={activeSegment.content}
+              onChange={handleEditorChange}
+              options={{
+                automaticLayout: true,
+                readOnly: !isOwner,
+                fontSize: 14,
+                lineHeight: 22,
+                fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', monospace",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                renderLineHighlight: isOwner ? 'line' : 'none',
+                cursorStyle: isOwner ? 'line' : 'underline',
+                padding: { top: 20, bottom: 20 },
+                lineNumbers: 'on',
+                glyphMargin: false,
+                folding: true,
+                bracketPairColorization: { enabled: true },
+                smoothScrolling: true,
+              }}
+            />
+          </>
+        ) : (
+          <div className="editor-empty">
+            <p>No segments yet — create one to start coding.</p>
+            <button
+              className="editor-empty-btn"
+              onClick={() => setShowNewForm(true)}
+            >
+              + Create your first segment
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
