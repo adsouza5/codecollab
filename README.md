@@ -2,7 +2,7 @@
 
 Multi-user code editor where each participant owns a private segment. Changes broadcast instantly via WebSocket (Socket.io). Users get assigned unique colors, can create named segments in any language, and see each other's edits update live.
 
-**[Live Demo](https://adsouza5.github.io/portfolio-react/projects/codecollab)**
+**[Live Demo](https://www.iadamdsouza.com/projects/codecollab)**
 
 ## Architecture
 
