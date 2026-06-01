@@ -1,59 +1,52 @@
 # CodeCollab — Real-Time Collaborative Code Editor
 
-Multi-user code editor where each participant owns a private segment. Changes broadcast instantly via WebSocket (Socket.io). Users get assigned unique colors, can create named segments in any language, and see each other's edits update live.
+> Segment-based multiplayer coding environment — each collaborator owns their segment, sees everyone else's in real time, and can run code without leaving the browser.
 
-**[Live Demo](https://www.iadamdsouza.com/projects/codecollab)**
+## Overview
+
+CodeCollab replaces the traditional shared-buffer model with a **segment ownership** approach: every user creates a named code segment that only they can edit — all other participants see it live but read-only. This eliminates merge conflicts by design. Shared state is synced using **Y.js CRDTs** over a **y-websocket** relay (deployed on Render), so edits converge even under network partitions.
+
+**Monaco Editor** renders each segment with the owner's unique colour decoration and enforces read-only boundaries for non-owners. **Judge0 CE** compiles and runs code in an isolated sandbox, returning stdout, stderr, compile errors, and time-limit-exceeded signals.
+
+## Features
+
+- **Segment ownership** — each collaborator controls exactly one segment; read-only for all others
+- **Y.js CRDT sync** — conflict-free real-time merging over WebSocket
+- **Monaco Editor** — full IDE experience with syntax highlighting, IntelliSense, and per-owner colour decorations
+- **Judge0 CE execution** — sandboxed multi-language runner (JS, TS, Python, Go, Rust, Java) with TLE and compile-error surfacing
+- **10 languages** — JavaScript, TypeScript, Python, Go, Rust, Java, C, C++, HTML, CSS
+- **Live cursor presence** — see every collaborator's cursor position and colour in real time
+- **Camera preview** — optional in-browser webcam panel per user
+- **Passcode-protected sessions** — client-side SHA-256 hashing, no plaintext secrets transmitted
+- **Session codes** — 8-character alphanumeric room codes for easy sharing
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Real-time sync | Y.js (CRDT), y-websocket |
+| Editor | Monaco Editor (@monaco-editor/react) |
+| Code execution | Judge0 CE (REST API) |
+| Frontend | React |
+| WebSocket relay | y-websocket server on Render |
+| Auth | Client-side SHA-256 passcode hashing |
 
 ## Architecture
 
 ```
-Browser (React client)
-      │  Socket.io
-      ▼
-Node.js / Express server
-      │
-      ├── join           ──▶  assign color, sync all users + segments
-      ├── segment:create ──▶  broadcast new segment to room
-      ├── segment:update ──▶  owner-only edit, broadcast content delta
-      ├── segment:delete ──▶  owner-only, broadcast removal
-      └── disconnect     ──▶  remove user, update presence list
+Browser A (segment owner)       Browser B (read-only)
+        ↓                               ↓
+  Y.js Doc (local)               Y.js Doc (local)
+        ↕  WebSocket (y-websocket relay on Render)  ↕
+        └───────────────────────────────────────────┘
+
+Run button → Judge0 CE API → stdout / stderr / TLE
 ```
 
-## Features
+## Live Demo
 
-- **Segment ownership** — each user creates and owns their own code block; others can read but not edit
-- **Live presence** — connected users shown with distinct colors; list updates on join/leave
-- **Multi-language** — segments support any Monaco-supported language (JS, Python, Go, etc.)
-- **Instant sync** — Socket.io broadcasts content deltas to all connected clients on every keystroke
+Available at [adamdsouza.com](https://adamdsouza.com) → CodeCollab project card.
 
-## Tech Stack
+## License
 
-| Layer | Technology |
-|---|---|
-| Server | Node.js, Express |
-| Real-time | Socket.io v4 |
-| Client | React |
-| Hosting | Firebase |
-
-## Local Development
-
-```bash
-# Server
-git clone https://github.com/adsouza5/codecollab
-cd codecollab
-npm install
-npm run dev
-# Server on :5000
-
-# Client
-cd client
-npm install
-npm start
-# Client on :3000
-```
-
-## Deployment
-
-```bash
-firebase deploy
-```
+MIT
